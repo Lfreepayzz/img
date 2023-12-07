@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>在线SSH终端</title>
+    <script src="//img.asvip.eu.org/static/img/vue.js"></script>
+    <script src="//img.asvip.eu.org/static/img/element.js"></script>
+    <script src="//img.asvip.eu.org/static/img/socket.io.js"></script>
+    <script src="//img.asvip.eu.org/static/img/xterm.js"></script>
+</head>
+<body>
+    <div id="app">
+        <div class="login-wrap" v-if="isConnect">
+            <h3>在线SSH终端</h3>
+            <el-form :model="form" label-width="90px" :rules="rules" ref="formRef" label-position="top">
+                <el-form-item label="IP" prop="host">
+                    <el-input v-model="form.host" placeholder="请输入IP" />
+                </el-form-item>
+                <el-form-item label="端口" prop="port">
+                    <el-input v-model="form.port" placeholder="请输入端口" />
+                </el-form-item>
+                <el-form-item label="用户名" prop="username">
+                    <el-input v-model="form.username" placeholder="请输入用户名" />
+                </el-form-item>
+                <el-form-item label="密码" prop="password">
+                    <el-input type="password" v-model="form.password" show-password placeholder="请输入密码" />
+                </el-form-item>
+                <div class="dc">
+                    <el-button type="primary" @click="onConnect">创建连接</el-button>
+                </div>
+            </el-form>
+        </div>
+        <div class="func-wrap" v-else="isConnect">
+            <!-- ssh操作 -->
+            <div id="terminal"></div>
+            <!-- 操作栏 -->
+            <div class="func-panel">
+                <p>Centos系统宝塔安装命令：yum install -y wget && wget -O install.sh http://download.bt.cn/install/install_6.0.sh && sh install.sh 8234aaab4</p>
+                <el-button @click="copyBt" type="primary">一键复制</el-button>
+                <br />
+                <br />
+                <p>
+                    Centos系统一键更换最佳软件源脚本命令：wget -O - dl.cnsvs.com.cn/shell/fix_source.sh | bash
+                </p>
+                <el-button @click="copyBtq" type="primary">一键复制</el-button>
+                <br />
+                <br />
+                <p>
+                   1Panel是新一代的Linux服务器运维管理面板 Centos系统安装命令：curl -sSL https://resource.fit2cloud.com/1panel/package/quick_start.sh -o quick_start.sh && sh quick_start.sh
+                </p>
+                <el-button @click="copyBtw" type="primary">一键复制</el-button>
+                <br />
+                <br />
+                <p>
+                    自动修复宝塔面板安装异常命令：wget -O - dl.cnsvs.com.cn/shell/auto_node.sh | bash
+                </p>
+                <el-button @click="copyBte" type="primary">一键复制</el-button>
+                <br />
+                <br />
+                <p>
+                    宝塔一键挂载数据盘指令：wget -O auto_disk.sh http://download.bt.cn/tools/auto_disk.sh && sudo bash auto_disk.sh
+                </p>
+                <el-button @click="copyBtr" type="primary">一键复制</el-button>
+                <br />
+                <br />
+                <p>
+                    等待添加...
+                </p>
+                <el-button @click="copyBt5" type="primary">一键复制</el-button>
+            </div>
+        </div>
+    </div>
+    <link rel="stylesheet" href="//img.asvip.eu.org/static/img/element.css">
+    <link rel="stylesheet" href="//img.asvip.eu.org/static/img/xterm.css" />
+    <link rel="stylesheet" href="//img.asvip.eu.org/static/img/index.css">
+    <script>
+        const App = {
+            data() {
+                return {
+                    term: {}, // term实例
+                    socket: {}, // websocket实例
+                    isConnect: true,
+                    rules: {
+                        host: [
+                            { required: true, message: '请输入IP', trigger: 'blur' },
+                        ],
+                        port: [
+                            { required: true, message: '请输入端口', trigger: 'blur' },
+                        ],
+                        username: [
+                            { required: true, message: '请输入用户名', trigger: 'blur' },
+                        ],
+                        password: [
+                            { required: true, message: '请输入密码', trigger: 'blur' },
+                        ],
+                    },
+                    form: {
+                        host: '',
+                        port: '',
+                        username: '',
+                        password: ''
+                    }
+                };
+            },
+            mounted(){
+                this.getUrlParams2()
+            },
+            methods: {
+                onConnect() {
+                    this.$refs.formRef.validate(valid => {
+                        if (!valid) return
+                        // 连接socket
+                        this.ws();
+                    })
+                },
+                ws() {
+                        this.socket = io("https://ssh.xybhdy.com");
+                        console.log('连接websocket成功')
+                        this.isConnect = false;
+                        console.log('开始初始化终端界面')
+                        this.term = new Terminal({
+                            rows: 35,
+                            cursorStyle: 'underline', //光标样式
+                            cursorBlink: true, // 光标闪烁
+                            convertEol: true, //启用时，光标将设置为下一行的开头
+                            disableStdin: false, //是否应禁用输入。
+                            theme: {
+                                foreground: 'white', //字体
+                                background: '#060101', //背景色
+                                cursor: 'help',//设置光标
+                            }
+                        });
+                        this.$nextTick(() => {
+                            this.term.open(document.getElementById('terminal'));
+                            console.log('初始化终端成功')
+                            this.term.focus();
+                        })
+                        // 通过服务器信息连接socket 后端连接ssh服务端
+                        this.socket.emit('ssh-connect', {
+                            ...this.form,
+                            cols: 100,
+                            rows: 20,
+                        })
+
+                        // 只要有键入 就会触发该事件
+                        this.term.onData((data) => {
+                            this.socket.emit("ssh-data", data);
+                        });
+
+
+                        // socket.on()用于监听获取服务端（后端）发送过来的数据, 第一个参数为监听的标识
+                        this.socket.on("ssh-data", (data) => {
+                            this.term.write(data)
+                        });
+
+                        window.addEventListener(
+                            "resize",
+                            () => {
+                                this.socket.emit("resize", {
+                                    cols: 100,
+                                    rows: 20,
+                                });
+                            },
+                            false
+                        );
+                        this.socket.on("disconnect", (reason) => {
+                            //监听连接异常中断
+                            console.log("中断", reason);
+                            this.isConnect = true
+                        });
+                },
+                copyBt() {
+                    navigator.clipboard.writeText('yum install -y wget && wget -O install.sh http://download.bt.cn/install/install_6.0.sh && sh install.sh 88bc7c62');
+                    this.$message.success('复制成功！')
+                },
+                copyBtq(){
+                     navigator.clipboard.writeText('wget -O - dl.cnsvs.com.cn/shell/fix_source.sh | bash');
+                    this.$message.success('复制成功！')
+                },
+                copyBtw(){
+                     navigator.clipboard.writeText('curl -sSL https://resource.fit2cloud.com/1panel/package/quick_start.sh -o quick_start.sh && sh quick_start.sh');
+                    this.$message.success('复制成功！')
+                },
+                copyBte(){
+                     navigator.clipboard.writeText('wget -O - dl.cnsvs.com.cn/shell/auto_node.sh | bash');
+                    this.$message.success('复制成功！')
+                },
+                copyBtr(){
+                     navigator.clipboard.writeText('wget -O auto_disk.sh http://download.bt.cn/tools/auto_disk.sh && sudo bash auto_disk.sh');
+                    this.$message.success('复制成功！')
+                },
+                getUrlParams2() {
+                    let urlStr = window.location.href.split('?')[1]
+                    const urlSearchParams = new URLSearchParams(urlStr)
+                    const result = Object.fromEntries(urlSearchParams.entries())
+                    if(Object.keys(result).length){
+                         Object.assign(this.form,result)
+                    }
+                }
+            },
+        };
+        const app = Vue.createApp(App);
+        app.use(ElementPlus);
+        app.mount("#app");
+    </script>
+</body>
+</html>
+    <script src="//img.asvip.eu.org/static/img/swiper-3.4.2.jquery.min.js"></script>
+    <script src="//img.asvip.eu.org/static/img/index.js"></script>
+	<script>
+		$(document).on("click", ".icons-float-bar,.float-bar-nav .phone-icon", function(e) {
+						$(".sub-nav-layer").toggleClass("float-expand");
+						if (window.screen.width < 1024) {
+							e.preventDefault()
+						}
+					});
+	</script>
+  </body>
+</html>
